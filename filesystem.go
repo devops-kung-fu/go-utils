@@ -61,7 +61,8 @@ func DownloadFile(fs fileSystem, url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer response.Body.Close()
+	defer checkClose(response.Body)
+
 	if response.StatusCode != 200 {
 		return "", errors.New("Received non 200 response code")
 	}
@@ -71,7 +72,8 @@ func DownloadFile(fs fileSystem, url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer file.Close()
+	defer checkClose(file)
+
 	_, err = fs.Copy(file, response.Body)
 	if err != nil {
 		return "", err
@@ -86,13 +88,15 @@ func UnZip(source string, destination string) error {
 	if err != nil {
 		return err
 	}
-	defer archive.Close()
+	defer checkClose(archive)
+
 	for _, file := range archive.Reader.File {
 		reader, err := file.Open()
 		if err != nil {
 			return err
 		}
-		defer reader.Close()
+		defer checkClose(reader)
+
 		path := filepath.Join(destination, file.Name)
 		// Remove file if it already exists; no problem if it doesn't; other cases can error out below
 		_ = os.Remove(path)
@@ -116,7 +120,8 @@ func UnZip(source string, destination string) error {
 		if err != nil {
 			return err
 		}
-		defer writer.Close()
+		defer checkClose(writer)
+
 		_, err = io.Copy(writer, reader)
 		if err != nil {
 			return err
@@ -143,4 +148,16 @@ func FindFiles(fs fileSystem, root string, re string) ([]string, error) {
 		return nil, e
 	}
 	return files, nil
+}
+
+func checkClose(v interface{}) {
+	if d, ok := v.(io.ReadCloser); ok {
+		_ = d.Close()
+	} else if d, ok := v.(io.Closer); ok {
+		_ = d.Close()
+	} else if d, ok := v.(zip.ReadCloser); ok {
+		_ = d.Close()
+	} else if d, ok := v.(os.File); ok {
+		_ = d.Close()
+	}
 }
