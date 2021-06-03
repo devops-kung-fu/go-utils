@@ -1,4 +1,4 @@
-package io
+package util
 
 import (
 	"archive/zip"
