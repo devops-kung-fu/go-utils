@@ -5,87 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/spf13/afero"
 )
-
-type fileSystem interface {
-	Open(name string) (File, error)
-	Copy(dst io.Writer, src io.Reader) (int64, error)
-	Create(name string) (File, error)
-	Remove(name string) error
-	RemoveAll(name string) error
-	Stat(name string) (os.FileInfo, error)
-	Walk(root string, walkFn filepath.WalkFunc) error
-	ReadFile(filename string) ([]byte, error)
-	WriteFile(filename string, data []byte, perm os.FileMode) error
-	NewFile(fd uintptr, name string) File
-}
-
-// File interface
-type File interface {
-	io.Closer
-	io.Writer
-	io.Reader
-	io.ReaderAt
-	io.Seeker
-	Stat() (os.FileInfo, error)
-}
-
-// OSFS implements fileSystem using the local disk.
-type OSFS struct{}
-
-// Open - Open File
-func (OSFS) Open(name string) (File, error) { return os.Open(name) }
-
-// Copy - Copy File
-func (OSFS) Copy(dst io.Writer, src io.Reader) (int64, error) { return io.Copy(dst, src) }
-
-// Create - Create File
-func (OSFS) Create(name string) (File, error) { return os.Create(name) }
-
-// Remove - Remove File
-func (OSFS) Remove(name string) error { return os.Remove(name) }
-
-// RemoveAll - Remove Directory
-func (OSFS) RemoveAll(name string) error { return os.RemoveAll(name) }
-
-// Stat - Stat File
-func (OSFS) Stat(name string) (os.FileInfo, error) { return os.Stat(name) }
-
-// Walk - Walk Path
-func (OSFS) Walk(root string, walkFn filepath.WalkFunc) error { return filepath.Walk(root, walkFn) }
-
-// ReadFile - Reads a File
-func (OSFS) ReadFile(filename string) ([]byte, error) { return ioutil.ReadFile(filename) }
-
-// WriteFile - Writes to a File
-func (OSFS) WriteFile(filename string, data []byte, perm os.FileMode) error {
-	return ioutil.WriteFile(filename, data, perm)
-}
-
-// NewFile - Creates a new File
-func (OSFS) NewFile(fd uintptr, name string) File {
-	return os.NewFile(fd, name)
-}
-
-type mockFS struct{}
-
-func (mockFS) Open(name string) (File, error)                                 { return nil, nil }
-func (mockFS) Copy(dst io.Writer, src io.Reader) (int64, error)               { return 100, nil }
-func (mockFS) Create(name string) (File, error)                               { return nil, nil }
-func (mockFS) Remove(name string) error                                       { return nil }
-func (mockFS) RemoveAll(name string) error                                    { return nil }
-func (mockFS) Stat(name string) (os.FileInfo, error)                          { return nil, nil }
-func (mockFS) Walk(root string, walkFn filepath.WalkFunc) error               { return nil }
-func (mockFS) ReadFile(filename string) ([]byte, error)                       { return []byte(`Test String`), nil }
-func (mockFS) WriteFile(filename string, data []byte, perm os.FileMode) error { return nil }
-func (mockFS) NewFile(fd uintptr, name string) File                           { return nil }
 
 func sanitizeExtractPath(filePath string, destination string) error {
 	destpath := filepath.Join(destination, filePath)
@@ -96,7 +24,7 @@ func sanitizeExtractPath(filePath string, destination string) error {
 }
 
 // DownloadFile - Download a file from a URL
-func DownloadFile(fs fileSystem, url string) (string, error) {
+func DownloadFile(fs afero.Fs, url string) (string, error) {
 	response, err := http.Get(url)
 	if err != nil {
 		return "", err
@@ -114,7 +42,7 @@ func DownloadFile(fs fileSystem, url string) (string, error) {
 	}
 	defer checkClose(file)
 
-	_, err = fs.Copy(file, response.Body)
+	_, err = io.Copy(file, response.Body)
 	if err != nil {
 		return "", err
 	}
@@ -176,13 +104,13 @@ func UnZip(source string, destination string) error {
 }
 
 // FindFiles - Recursively search for files matching a pattern.
-func FindFiles(fs fileSystem, root string, re string) ([]string, error) {
+func FindFiles(fs afero.Fs, root string, re string) ([]string, error) {
 	libRegEx, e := regexp.Compile(re)
 	if e != nil {
 		return nil, e
 	}
 	var files []string
-	e = fs.Walk(root, func(filePath string, info os.FileInfo, err error) error {
+	e = afero.Walk(fs, root, func(filePath string, info os.FileInfo, err error) error {
 		if err == nil && libRegEx.MatchString(info.Name()) {
 			files = append(files, filePath)
 		}
