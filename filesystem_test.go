@@ -40,7 +40,7 @@ func TestFindFiles(t *testing.T) {
 	}
 }
 
-func TestDownloadFile (t *testing.T) {
+func TestDownloadFile(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	_, err := DownloadFile(fs, "https://github.com/devops-kung-fu/go-utils/archive/refs/heads/main.zip")
 	if err != nil {
@@ -48,7 +48,7 @@ func TestDownloadFile (t *testing.T) {
 	}
 }
 
-func TestDownloadFileBadURL (t *testing.T) {
+func TestDownloadFileBadURL(t *testing.T) {
 	fs := afero.NewMemMapFs()
 	_, err := DownloadFile(fs, "https://github.com/devops-kung-fu/git-utils/archive/refs/heads/main.zip")
 	if err == nil {
